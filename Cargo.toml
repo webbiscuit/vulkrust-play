@@ -6,3 +6,8 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 ash = "0.38.0"
+# winit = { version="0.30.12", features = ["x11"]}
+# winit = "0.30.12"
+winit = { version = "0.30", default-features = false, features = ["rwh_06", "wayland", "x11"] }
+raw-window-handle = "0.6"
+softbuffer = "0.4.6"

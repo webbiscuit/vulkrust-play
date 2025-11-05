@@ -2,13 +2,13 @@ use ash::{vk, Entry};
 use crate::debug::{DebugState, debug_callback};
 use anyhow::Result;
 
-pub struct VulkanApp {
+pub struct VulkanEngine {
     _entry: ash::Entry,
     instance: ash::Instance,
     debug: Option<DebugState>
 }
 
-impl VulkanApp {
+impl VulkanEngine {
     pub fn new(app_name: &str, enable_validation: bool) -> Result<Self> {
         let entry = unsafe { Entry::load()? };
 
@@ -73,7 +73,7 @@ impl VulkanApp {
             )
         }
 
-        Ok(VulkanApp { 
+        Ok(VulkanEngine { 
             _entry: entry, 
             instance, 
             debug: debug_state
@@ -93,7 +93,7 @@ impl VulkanApp {
     }
 }
 
-impl Drop for VulkanApp {
+impl Drop for VulkanEngine {
     fn drop(&mut self) {
         unsafe { 
             if let Some(debug_state)= &mut self.debug {
