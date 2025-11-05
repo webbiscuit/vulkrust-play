@@ -1,28 +1,18 @@
 use ash::{vk, Entry};
 use anyhow::Result;
 
-extern "system" fn debug_callback(
-    severity: vk::DebugUtilsMessageSeverityFlagsEXT,
-    types: vk::DebugUtilsMessageTypeFlagsEXT,
-    data: *const vk::DebugUtilsMessengerCallbackDataEXT,
-    _user: *mut std::ffi::c_void,
-) -> vk::Bool32 {
-    unsafe {
-        let msg = std::ffi::CStr::from_ptr((*data).p_message).to_string_lossy();
-        eprintln!("[{:?} {:?}] {}", severity, types, msg);
-    }
-    vk::FALSE
-}
+use crate::debug::{DebugState, debug_callback};
+
+mod debug;
 
 struct VulkanApp {
     _entry: ash::Entry,
     instance: ash::Instance,
-    debug_utils: Option<ash::ext::debug_utils::Instance>,
-    debug_messenger: Option<vk::DebugUtilsMessengerEXT>,
+    debug: Option<DebugState>
 }
 
 impl VulkanApp {
-    pub fn new(app_name: &str) -> Result<Self> {
+    pub fn new(app_name: &str, enable_validation: bool) -> Result<Self> {
         let entry = unsafe { Entry::load()? };
 
         let app_name = std::ffi::CString::new(app_name)?;
@@ -35,22 +25,30 @@ impl VulkanApp {
         };
 
         let validation_layer = std::ffi::CString::new("VK_LAYER_KHRONOS_validation")?;
-        let enabled_layers = [validation_layer.as_ptr()];
-        let enabled_exts = [ash::ext::debug_utils::NAME.as_ptr()];
+        let mut enabled_layers = Vec::new();
+        let mut enabled_exts = Vec::new(); 
+        let mut debug_ci_opt: Option<vk::DebugUtilsMessengerCreateInfoEXT> = None;
 
-        let mut debug_messenger_create_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
-            .message_severity(
-                vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-                | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
-                | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
-                // | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
-            )
-            .message_type(
-                vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
-                | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
-                | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
-            )
-            .pfn_user_callback(Some(debug_callback));
+        if enable_validation {
+            enabled_layers.push(validation_layer.as_ptr());
+            enabled_exts.push(ash::ext::debug_utils::NAME.as_ptr()); 
+
+            let debug_messenger_create_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
+                .message_severity(
+                    vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
+                    // | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
+                )
+                .message_type(
+                    vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                    | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                    | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
+                )
+                .pfn_user_callback(Some(debug_callback));
+
+            debug_ci_opt = Some(debug_messenger_create_info);
+        }
 
         let mut create_info = vk::InstanceCreateInfo {
             p_application_info: &app_info,
@@ -60,18 +58,28 @@ impl VulkanApp {
             enabled_extension_count: enabled_exts.len() as u32,
             ..Default::default()
         };
-        create_info = create_info.push_next(&mut debug_messenger_create_info);
+
+        if let Some(ref mut debug_ci) = debug_ci_opt {
+            create_info = create_info.push_next(debug_ci);
+        }
 
         let instance = unsafe { entry.create_instance(&create_info, None)? };
 
-        let debug_utils = ash::ext::debug_utils::Instance::new(&entry, &instance);
-        let debug_messenger = unsafe { debug_utils.create_debug_utils_messenger(&debug_messenger_create_info, None)? };
+        let mut debug_state: Option<DebugState> = None;
+
+        if let Some(ref debug_ci) = debug_ci_opt {
+            let debug_utils = ash::ext::debug_utils::Instance::new(&entry, &instance);
+            let debug_messenger = unsafe { debug_utils.create_debug_utils_messenger(debug_ci, None)? };
+
+            debug_state = Some(
+                DebugState::new(debug_utils, debug_messenger)
+            )
+        }
 
         Ok(VulkanApp { 
             _entry: entry, 
             instance, 
-            debug_utils: Some(debug_utils), 
-            debug_messenger: Some(debug_messenger) 
+            debug: debug_state
         })
     }
 
@@ -91,8 +99,8 @@ impl VulkanApp {
 impl Drop for VulkanApp {
     fn drop(&mut self) {
         unsafe { 
-            if let (Some(du), Some(m)) = (&self.debug_utils, self.debug_messenger) {
-                du.destroy_debug_utils_messenger(m, None);
+            if let Some(debug_state)= &mut self.debug {
+                debug_state.destroy();
             }
             self.instance.destroy_instance(None) 
         }
@@ -100,7 +108,7 @@ impl Drop for VulkanApp {
 }
 
 fn main() -> Result<()>{
-    let app = VulkanApp::new("Vulkan Play")?;
+    let app = VulkanApp::new("Vulkan Play", true)?;
     app.list_physical_devices()?;
     
     Ok(())
