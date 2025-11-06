@@ -67,8 +67,8 @@ impl ApplicationHandler for App {
 }
 
 fn main() -> Result<()>{
-    let engine = VulkanEngine::new("Window App", true)?;
-    engine.phase2();
+    let mut engine = VulkanEngine::new("Window App", true)?;
+    engine.phase2()?;
 
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);

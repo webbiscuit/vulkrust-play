@@ -1,4 +1,4 @@
-use ash::{Entry, vk::{self, PhysicalDevice, PhysicalDeviceType, QueueFlags}};
+use ash::{Entry, vk::{self, PhysicalDevice, PhysicalDeviceType, Queue, QueueFlags}};
 use crate::debug::{DebugState, debug_callback};
 use anyhow::{Error, Result};
 
@@ -15,7 +15,9 @@ impl QueueFamilyIndices {
 pub struct VulkanEngine {
     _entry: ash::Entry,
     instance: ash::Instance,
-    debug: Option<DebugState>
+    debug: Option<DebugState>,
+    device: Option<ash::Device>,
+    graphics_queue: vk::Queue
 }
 
 impl VulkanEngine {
@@ -86,13 +88,43 @@ impl VulkanEngine {
         Ok(VulkanEngine { 
             _entry: entry, 
             instance, 
-            debug: debug_state
+            debug: debug_state,
+            device: None,
+            graphics_queue: Queue::null()
         })
     }
 
-    pub fn phase2(&self) {
-        let _physical_device = self.pick_suitable_device();
+    pub fn phase2(&mut self) -> Result<()> {
+        let physical_device = self.pick_suitable_device()?;
+        let family_indicies = self.find_queue_families(&physical_device);
 
+        let queue_priority = 1.0f32;
+
+        let queue_create_info = vk::DeviceQueueCreateInfo {
+            queue_family_index: family_indicies.graphics_family.unwrap(),
+            queue_count: 1,
+            p_queue_priorities: &queue_priority,
+            ..Default::default()
+        };
+        let device_features = vk::PhysicalDeviceFeatures {
+            ..Default::default()
+        };
+        let device_create_info = vk::DeviceCreateInfo {
+            p_queue_create_infos: &queue_create_info,
+            queue_create_info_count: 1,
+            p_enabled_features: &device_features,
+            ..Default::default()
+        };
+        // Can set validation layers here
+
+        let device = unsafe { self.instance.create_device(physical_device, &device_create_info, None)? };
+
+        let queue = unsafe { device.get_device_queue(family_indicies.graphics_family.unwrap(), 0) };
+
+        self.device = Some(device);
+        self.graphics_queue = queue;
+
+        Ok(())
     }
 
     fn find_queue_families(&self, physical_device: &PhysicalDevice) -> QueueFamilyIndices {
@@ -184,6 +216,9 @@ impl Drop for VulkanEngine {
         unsafe { 
             if let Some(debug_state)= &mut self.debug {
                 debug_state.destroy();
+            }
+            if let Some(device) = &mut self.device {
+                device.destroy_device(None);
             }
             self.instance.destroy_instance(None) 
         }
