@@ -94,7 +94,7 @@ impl VulkanEngine {
         })
     }
 
-    pub fn phase2(&mut self) -> Result<()> {
+    pub fn create_device(&mut self) -> Result<()> {
         let physical_device = self.pick_suitable_device()?;
         let family_indicies = self.find_queue_families(&physical_device);
 
