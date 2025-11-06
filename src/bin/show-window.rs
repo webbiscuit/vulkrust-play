@@ -2,7 +2,7 @@ use std::num::NonZero;
 
 use anyhow::Result;
 use vulkrust_play::engine::VulkanEngine;
-use winit::{event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowAttributes}};
+use winit::{event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Window, WindowAttributes}};
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -67,12 +67,13 @@ impl ApplicationHandler for App {
 }
 
 fn main() -> Result<()>{
+    let engine = VulkanEngine::new("Window App", true)?;
+    engine.phase2();
+
     let event_loop = EventLoop::new()?;
-    // event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut app = App::default();
-    // let _ = event_loop.run_app(&mut app);
-
     event_loop.run_app(&mut app)?;
     
     Ok(())
