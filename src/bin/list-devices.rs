@@ -1,9 +1,13 @@
 use anyhow::Result;
-use vulkrust_play::engine::VulkanEngine;
+use vulkrust_play::Instance;
 
 fn main() -> Result<()>{
-    let app = VulkanEngine::new("Vulkan Play", true)?;
-    app.list_physical_devices()?;
+    let instance = Instance::new("List Devices", true)?;
+    let physical_devices = instance.physical_devices()?;
+
+    for (ix, device) in physical_devices.iter().enumerate() {
+        println!("#{ix}: {device:?}")
+    }
     
     Ok(())
 }
