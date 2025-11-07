@@ -3,13 +3,13 @@ use crate::debug::{DebugState, debug_callback};
 use anyhow::Result;
 
 pub struct Instance {
-    _entry: ash::Entry,
+    entry: ash::Entry,
     raw: ash::Instance,
     debug: Option<DebugState>
 }
 
 impl Instance {
-    pub fn new(app_name: &str, enable_validation: bool) -> Result<Self> {
+    pub fn new(app_name: &str, enable_validation: bool, exts: Option<&[*const i8]>) -> Result<Self> {
         let entry = unsafe { Entry::load()? };
 
         let app_name = std::ffi::CString::new(app_name)?;
@@ -47,6 +47,10 @@ impl Instance {
             debug_ci_opt = Some(debug_messenger_create_info);
         }
 
+        if exts.is_some() {
+            enabled_exts.extend(exts.unwrap());
+        }
+
         let mut create_info = vk::InstanceCreateInfo {
             p_application_info: &app_info,
             pp_enabled_layer_names: enabled_layers.as_ptr(),
@@ -74,7 +78,7 @@ impl Instance {
         }
 
         Ok(Self { 
-            _entry: entry, 
+            entry, 
             raw: instance,
             debug: debug_state
         })
@@ -83,6 +87,11 @@ impl Instance {
     #[inline]
     pub fn raw(&self) -> &ash::Instance {
         &self.raw
+    }
+
+    #[inline]
+    pub fn entry(&self) -> &ash::Entry {
+        &self.entry
     }
 
     pub fn physical_devices(&self) -> Result<Vec<String>> {

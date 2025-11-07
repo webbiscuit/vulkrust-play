@@ -12,6 +12,7 @@ use softbuffer::{Context, Surface};
 #[derive(Default)]
 struct App {
     window: Option<Window>,
+    engine: Option<VulkanEngine>
 }
 
 impl ApplicationHandler for App {
@@ -19,6 +20,9 @@ impl ApplicationHandler for App {
         let w = event_loop.create_window(
             WindowAttributes::default().with_title("WSLg - first frame")
         ).unwrap();
+
+        let engine = VulkanEngine::new("Window App", true, &w).expect("Cannot create engine");
+
 
         {
             let ctx  = Context::new(&w).unwrap();
@@ -31,6 +35,7 @@ impl ApplicationHandler for App {
         } 
 
         self.window = Some(w);
+        self.engine = Some(engine);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -67,13 +72,11 @@ impl ApplicationHandler for App {
 }
 
 fn main() -> Result<()>{
-    let engine = VulkanEngine::new("Window App", true)?;
-
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut app = App::default();
     event_loop.run_app(&mut app)?;
-    
+
     Ok(())
 }
