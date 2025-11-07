@@ -12,12 +12,12 @@ impl QueueFamilyIndices {
     }
 }
 
-pub struct Device {
+pub struct LogicalDevice {
     raw: ash::Device,
     graphics_queue: vk::Queue
 }
 
-impl Device {
+impl LogicalDevice {
     pub fn new(instance: &Instance, physical_device: &PhysicalDevice) -> Result<Self> {
         let family_indicies = find_queue_families(instance, physical_device);
 
@@ -51,7 +51,7 @@ impl Device {
     }
 }
 
-impl Drop for Device {
+impl Drop for LogicalDevice {
     fn drop(&mut self) {
         unsafe {
             self.raw.destroy_device(None);

@@ -2,12 +2,12 @@ use ash::vk::{PhysicalDevice, PhysicalDeviceType, SurfaceKHR};
 use ash_window::enumerate_required_extensions;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::{self, Window};
-use crate::{Device, Instance, Surface, device::find_queue_families, surface};
+use crate::{LogicalDevice, Instance, Surface, logical_device::find_queue_families, surface};
 use anyhow::{Error, Result};
 
 pub struct VulkanEngine {
     surface: Surface,
-    device: Device,
+    device: LogicalDevice,
     instance: Instance, // Must be last
 }
 
@@ -18,7 +18,7 @@ impl VulkanEngine {
 
         let instance = Instance::new(app_name, enable_validation, Some(wsi_exts))?;
         let physical_device = Self::pick_suitable_device(&instance)?;
-        let device = Device::new(&instance, &physical_device)?;
+        let device = LogicalDevice::new(&instance, &physical_device)?;
         let surface = Surface::new(&instance, window)?;
 
         println!("Surface handle: {:?}", surface.raw());
