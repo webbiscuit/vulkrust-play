@@ -1,8 +1,8 @@
 use ash::vk::{PhysicalDevice, PhysicalDeviceType, SurfaceKHR};
 use ash_window::enumerate_required_extensions;
-use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use winit::window::{self, Window};
-use crate::{LogicalDevice, Instance, Surface, logical_device::find_queue_families, surface};
+use raw_window_handle::{HasDisplayHandle};
+use winit::window::Window;
+use crate::{Instance, LogicalDevice, Surface, logical_device::find_queue_families, utils::vk_str_to_string};
 use anyhow::{Error, Result};
 
 pub struct VulkanEngine {
@@ -13,12 +13,11 @@ pub struct VulkanEngine {
 
 impl VulkanEngine {
     pub fn new(app_name: &str, enable_validation: bool, window: &Window) -> Result<Self> {
-        
         let wsi_exts  = enumerate_required_extensions(window.display_handle()?.into())?;
 
         let instance = Instance::new(app_name, enable_validation, Some(wsi_exts))?;
         let physical_device = Self::pick_suitable_device(&instance)?;
-        let device = LogicalDevice::new(&instance, &physical_device)?;
+        let device = LogicalDevice::new(&instance, &physical_device, &Self::required_device_prop_names())?;
         let surface = Surface::new(&instance, window)?;
 
         println!("Surface handle: {:?}", surface.raw());
@@ -32,6 +31,13 @@ impl VulkanEngine {
         })
     }
 
+    fn required_device_prop_names() -> Vec<String> {
+        let swapchain = ash::khr::swapchain::NAME;
+        let swapchain = swapchain.to_str().unwrap().to_string();
+
+        vec![swapchain]
+    }
+
     pub fn pick_suitable_device(instance: &Instance) -> Result<PhysicalDevice> {
         let physical_devices = unsafe { instance.raw().enumerate_physical_devices()? };
 
@@ -39,11 +45,11 @@ impl VulkanEngine {
         let mut best_device: Option<PhysicalDevice> = None;
 
         for device in physical_devices.iter() {
-            if !Self::is_device_suitable(instance, device) {
+            if !Self::is_physical_device_suitable(instance, device)? {
                 continue;
             }
 
-            let score = Self::rate_device_suitability(instance, device);
+            let score = Self::rate_physical_device_suitability(instance, device);
 
             if score > best_score {
                 best_device = Some(*device);
@@ -58,12 +64,15 @@ impl VulkanEngine {
         Err(Error::msg("Failed to find a suitable GPU with vulkan support"))
     }
 
-    fn is_device_suitable(instance: &Instance, device: &PhysicalDevice) -> bool {
+    fn is_physical_device_suitable(instance: &Instance, device: &PhysicalDevice) -> Result<bool> {
         let indices = find_queue_families(instance, device);
-        indices.is_complete()
+
+        let extensions_supported = check_physical_device_extension_support(instance, device, &Self::required_device_prop_names())?;
+
+        Ok(indices.is_complete() && extensions_supported)
     }
 
-    fn rate_device_suitability(instance: &Instance, device: &PhysicalDevice) -> u32 {
+    fn rate_physical_device_suitability(instance: &Instance, device: &PhysicalDevice) -> u32 {
         let mut score = 0;
 
         let device_properties  = unsafe {instance.raw().get_physical_device_properties(*device) };
@@ -88,3 +97,23 @@ impl VulkanEngine {
         score
     }
 }
+
+fn check_physical_device_extension_support(instance: &Instance, physical_device: &PhysicalDevice, required_props_names: &[String]) -> Result<bool> {
+    let extension_props = unsafe { instance.raw().enumerate_device_extension_properties(*physical_device)? };
+    let mut required_props_names = required_props_names.to_vec();
+
+    for prop in extension_props {
+        let ix = required_props_names.iter().position(|p| p == &vk_str_to_string(&prop.extension_name));
+
+        if let Some(ix) = ix {
+            required_props_names.remove(ix); 
+
+            if required_props_names.is_empty() {
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(required_props_names.is_empty())
+}
+

@@ -1,3 +1,4 @@
+use std::{os::raw::c_char, str::FromStr};
 use ash::vk::{self, PhysicalDevice, QueueFlags};
 use crate::instance::Instance;
 use anyhow::Result;
@@ -18,7 +19,7 @@ pub struct LogicalDevice {
 }
 
 impl LogicalDevice {
-    pub fn new(instance: &Instance, physical_device: &PhysicalDevice) -> Result<Self> {
+    pub fn new(instance: &Instance, physical_device: &PhysicalDevice, required_props_names: &[String]) -> Result<Self> {
         let family_indicies = find_queue_families(instance, physical_device);
 
         let queue_priority = 1.0f32;
@@ -32,10 +33,23 @@ impl LogicalDevice {
         let device_features = vk::PhysicalDeviceFeatures {
             ..Default::default()
         };
+
+        // Need a CString version and pointer to all these, maybe needs wrapping
+        let required_props_names_cstrings: Vec<std::ffi::CString> = required_props_names
+            .iter()
+            .map(|layer_name| std::ffi::CString::from_str(layer_name).unwrap())
+            .collect();
+        let prepared_required_props_names: Vec<*const c_char> = required_props_names_cstrings
+            .iter()
+            .map(|layer_name| layer_name.as_ptr())
+            .collect();
+        
         let device_create_info = vk::DeviceCreateInfo {
             p_queue_create_infos: &queue_create_info,
             queue_create_info_count: 1,
             p_enabled_features: &device_features,
+            pp_enabled_extension_names: prepared_required_props_names.as_ptr(),
+            enabled_extension_count: required_props_names.len() as u32,
             ..Default::default()
         };
         // Can set validation layers here
