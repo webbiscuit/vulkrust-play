@@ -20,8 +20,19 @@ impl VulkanEngine {
         let device = LogicalDevice::new(&instance, &physical_device, &Self::required_device_prop_names())?;
         let surface = Surface::new(&instance, window)?;
 
-        println!("Surface handle: {:?}", surface.raw());
         assert_ne!(*surface.raw(), SurfaceKHR::null());
+
+        let surface_capabilities = surface.query_surface_capabilities(physical_device)?;
+        if !surface_capabilities.is_adequate() {
+            return Err(Error::msg("Surface is not capabale"));
+        }
+
+        let best_surface_format = surface_capabilities.find_best_format().expect("Could not find a good surface");
+        println!("Chosen surface: {:?}", best_surface_format);
+        let best_present_mode = surface_capabilities.find_best_present_mode().expect("Could no find present mode");
+        println!("Chosen present mode: {:?}", best_present_mode);
+        let extent_2d = surface_capabilities.find_swap_extent();
+        println!("Extent extent2D: {:?}", extent_2d);
 
 
         Ok(VulkanEngine { 

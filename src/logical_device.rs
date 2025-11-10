@@ -1,6 +1,5 @@
-use std::{os::raw::c_char, str::FromStr};
 use ash::vk::{self, PhysicalDevice, QueueFlags};
-use crate::instance::Instance;
+use crate::{instance::Instance, utils::{VkStringArray}};
 use anyhow::Result;
 
 pub struct QueueFamilyIndices {
@@ -34,21 +33,13 @@ impl LogicalDevice {
             ..Default::default()
         };
 
-        // Need a CString version and pointer to all these, maybe needs wrapping
-        let required_props_names_cstrings: Vec<std::ffi::CString> = required_props_names
-            .iter()
-            .map(|layer_name| std::ffi::CString::from_str(layer_name).unwrap())
-            .collect();
-        let prepared_required_props_names: Vec<*const c_char> = required_props_names_cstrings
-            .iter()
-            .map(|layer_name| layer_name.as_ptr())
-            .collect();
+        let prepared_required_props_names = VkStringArray::new(required_props_names);
         
         let device_create_info = vk::DeviceCreateInfo {
             p_queue_create_infos: &queue_create_info,
             queue_create_info_count: 1,
             p_enabled_features: &device_features,
-            pp_enabled_extension_names: prepared_required_props_names.as_ptr(),
+            pp_enabled_extension_names: prepared_required_props_names.as_ptrs(),
             enabled_extension_count: required_props_names.len() as u32,
             ..Default::default()
         };
