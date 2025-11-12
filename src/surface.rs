@@ -2,6 +2,7 @@ use anyhow::Result;
 use ash::vk::{self, ColorSpaceKHR, Extent2D, Format, PhysicalDevice, PresentModeKHR, SurfaceCapabilitiesKHR, SurfaceFormatKHR};
 use ash_window::create_surface;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+use num::clamp;
 
 use crate::Instance;
 
@@ -46,8 +47,37 @@ impl SurfaceCapabilities {
         return Some(PresentModeKHR::FIFO)
     }
 
-    pub fn find_swap_extent(&self) -> Extent2D {
-        self.capabilities.current_extent
+    pub fn find_swap_extent(&self, width: u32, height: u32) -> Extent2D {
+        if self.capabilities.current_extent.width != u32::MAX {
+            return self.capabilities.current_extent;
+        }
+
+        vk::Extent2D {
+            width: clamp(
+                width,
+                self.capabilities.min_image_extent.width,
+                self.capabilities.max_image_extent.width,
+            ),
+            height: clamp(
+                height,
+                self.capabilities.min_image_extent.height,
+                self.capabilities.max_image_extent.height,
+            ),
+        }
+    }
+
+    pub fn capabilities(&self) -> &SurfaceCapabilitiesKHR {
+        &self.capabilities
+    }
+
+    pub fn image_count(&self) -> u32 {
+        let mut image_count = self.capabilities.min_image_count + 1;
+
+        if self.capabilities.max_image_count > 0 && image_count > self.capabilities.max_image_count {
+            image_count = self.capabilities.max_image_count;
+        }
+
+        image_count
     }
 }
 
@@ -72,6 +102,11 @@ impl Surface {
         &self.handle
     }
 
+    #[inline]
+    pub fn surface_instance(&self) -> &ash::khr::surface::Instance {
+        &self.surface_instance
+    }
+
     pub fn query_surface_capabilities(&self, physical_device: PhysicalDevice) -> Result<SurfaceCapabilities> {
         let surface_capabilities = unsafe {
             self.surface_instance.get_physical_device_surface_capabilities(physical_device, self.handle)?
@@ -94,6 +129,8 @@ impl Surface {
 impl Drop for Surface {
     fn drop(&mut self) {
         unsafe {
+            println!("Dropping Surface");
+
             self.surface_instance.destroy_surface(self.handle, None);
         }
     }

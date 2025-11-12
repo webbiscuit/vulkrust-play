@@ -1,14 +1,15 @@
 use ash::vk::{self, PhysicalDevice, QueueFlags};
-use crate::{instance::Instance, utils::{VkStringArray}};
+use crate::{Surface, instance::Instance, utils::VkStringArray};
 use anyhow::Result;
 
 pub struct QueueFamilyIndices {
-    graphics_family: Option<u32> 
+    pub graphics_family: Option<u32>,
+    pub present_family: Option<u32> 
 }
 
 impl QueueFamilyIndices {
     pub fn is_complete(&self) -> bool {
-        self.graphics_family.is_some()
+        self.graphics_family.is_some() && self.present_family.is_some()
     }
 }
 
@@ -18,8 +19,8 @@ pub struct LogicalDevice {
 }
 
 impl LogicalDevice {
-    pub fn new(instance: &Instance, physical_device: &PhysicalDevice, required_props_names: &[String]) -> Result<Self> {
-        let family_indicies = find_queue_families(instance, physical_device);
+    pub fn new(instance: &Instance, physical_device: &PhysicalDevice, surface: &Surface, required_props_names: &[String]) -> Result<Self> {
+        let family_indicies = find_queue_families(instance, physical_device, surface)?;
 
         let queue_priority = 1.0f32;
 
@@ -54,27 +55,41 @@ impl LogicalDevice {
             graphics_queue
         })
     }
+
+    pub fn raw(&self) -> &ash::Device {
+        &self.raw
+    }
 }
 
 impl Drop for LogicalDevice {
     fn drop(&mut self) {
+        println!("Dropping LogicalDevice");
         unsafe {
+            self.raw.device_wait_idle().ok();
             self.raw.destroy_device(None);
         }
     }
 }
 
-pub fn find_queue_families(instance: &Instance, physical_device: &PhysicalDevice) -> QueueFamilyIndices {
+pub fn find_queue_families(instance: &Instance, physical_device: &PhysicalDevice, surface: &Surface) -> Result<QueueFamilyIndices> {
     let props = unsafe { instance.raw().get_physical_device_queue_family_properties(*physical_device) };
 
     let mut graphics_index = None;
+    let mut present_index = None;
 
     for (ix, prop) in props.iter().enumerate() {
         if prop.queue_flags.contains(QueueFlags::GRAPHICS) {
             graphics_index = Some(ix as u32);
-            break;
         }
+
+        let has_support = unsafe {surface.surface_instance().get_physical_device_surface_support(*physical_device, ix as u32, *surface.raw())? };
+
+        if has_support {
+            present_index = Some(ix as u32);
+        }
+
+        break;
     }
 
-    QueueFamilyIndices { graphics_family: graphics_index }
+    Ok(QueueFamilyIndices { graphics_family: graphics_index, present_family: present_index })
 }

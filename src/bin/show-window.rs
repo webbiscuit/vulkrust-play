@@ -11,8 +11,8 @@ use softbuffer::{Context, Surface};
 
 #[derive(Default)]
 struct App {
+    engine: Option<VulkanEngine>,
     window: Option<Window>,
-    engine: Option<VulkanEngine>
 }
 
 impl ApplicationHandler for App {

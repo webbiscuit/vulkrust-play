@@ -2,43 +2,31 @@ use ash::vk::{PhysicalDevice, PhysicalDeviceType, SurfaceKHR};
 use ash_window::enumerate_required_extensions;
 use raw_window_handle::{HasDisplayHandle};
 use winit::window::Window;
-use crate::{Instance, LogicalDevice, Surface, logical_device::find_queue_families, utils::vk_str_to_string};
+use crate::{Instance, LogicalDevice, Surface, logical_device::find_queue_families, surface, swap_chain::{self, SwapChain}, utils::vk_str_to_string};
 use anyhow::{Error, Result};
 
 pub struct VulkanEngine {
+    logical_device: LogicalDevice,
     surface: Surface,
-    device: LogicalDevice,
     instance: Instance, // Must be last
 }
 
 impl VulkanEngine {
     pub fn new(app_name: &str, enable_validation: bool, window: &Window) -> Result<Self> {
         let wsi_exts  = enumerate_required_extensions(window.display_handle()?.into())?;
+        let window_dims = window.inner_size();
 
         let instance = Instance::new(app_name, enable_validation, Some(wsi_exts))?;
-        let physical_device = Self::pick_suitable_device(&instance)?;
-        let device = LogicalDevice::new(&instance, &physical_device, &Self::required_device_prop_names())?;
         let surface = Surface::new(&instance, window)?;
-
         assert_ne!(*surface.raw(), SurfaceKHR::null());
-
-        let surface_capabilities = surface.query_surface_capabilities(physical_device)?;
-        if !surface_capabilities.is_adequate() {
-            return Err(Error::msg("Surface is not capabale"));
-        }
-
-        let best_surface_format = surface_capabilities.find_best_format().expect("Could not find a good surface");
-        println!("Chosen surface: {:?}", best_surface_format);
-        let best_present_mode = surface_capabilities.find_best_present_mode().expect("Could no find present mode");
-        println!("Chosen present mode: {:?}", best_present_mode);
-        let extent_2d = surface_capabilities.find_swap_extent();
-        println!("Extent extent2D: {:?}", extent_2d);
-
+        let physical_device = Self::pick_suitable_device(&instance, &surface)?;
+        let logical_device = LogicalDevice::new(&instance, &physical_device,  &surface, &Self::required_device_prop_names())?;
+        let swap_chain = SwapChain::new(&instance, &physical_device, &logical_device, &surface, window_dims.width, window_dims.height)?;
 
         Ok(VulkanEngine { 
             surface,
             instance, 
-            device
+            logical_device
         })
     }
 
@@ -49,14 +37,14 @@ impl VulkanEngine {
         vec![swapchain]
     }
 
-    pub fn pick_suitable_device(instance: &Instance) -> Result<PhysicalDevice> {
+    pub fn pick_suitable_device(instance: &Instance, surface: &Surface) -> Result<PhysicalDevice> {
         let physical_devices = unsafe { instance.raw().enumerate_physical_devices()? };
 
         let mut best_score = 0;
         let mut best_device: Option<PhysicalDevice> = None;
 
         for device in physical_devices.iter() {
-            if !Self::is_physical_device_suitable(instance, device)? {
+            if !Self::is_physical_device_suitable(instance, device, surface)? {
                 continue;
             }
 
@@ -75,8 +63,8 @@ impl VulkanEngine {
         Err(Error::msg("Failed to find a suitable GPU with vulkan support"))
     }
 
-    fn is_physical_device_suitable(instance: &Instance, device: &PhysicalDevice) -> Result<bool> {
-        let indices = find_queue_families(instance, device);
+    fn is_physical_device_suitable(instance: &Instance, device: &PhysicalDevice, surface: &Surface) -> Result<bool> {
+        let indices = find_queue_families(instance, device, surface)?;
 
         let extensions_supported = check_physical_device_extension_support(instance, device, &Self::required_device_prop_names())?;
 
@@ -127,4 +115,3 @@ fn check_physical_device_extension_support(instance: &Instance, physical_device:
 
     Ok(required_props_names.is_empty())
 }
-
