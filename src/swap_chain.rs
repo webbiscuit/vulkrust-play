@@ -1,10 +1,13 @@
-use ash::vk::{CompositeAlphaFlagsKHR, ImageUsageFlags, PhysicalDevice, SharingMode, SwapchainKHR};
+use ash::vk::{CompositeAlphaFlagsKHR, Extent2D, Format, Image, ImageUsageFlags, PhysicalDevice, SharingMode, SurfaceFormatKHR, SwapchainKHR};
 use crate::{LogicalDevice, Surface, instance::Instance, logical_device::find_queue_families};
 use anyhow::Result;
 
 pub struct SwapChain {
     swapchain: SwapchainKHR,
-    swapchain_loader: ash::khr::swapchain::Device
+    swapchain_loader: ash::khr::swapchain::Device,
+    images: Vec<Image>,
+    image_format: Format,
+    extent: Extent2D
 }
 
 impl SwapChain {
@@ -55,9 +58,14 @@ impl SwapChain {
                 .create_swapchain(&create_info, None)?
         };
 
+        let images =  unsafe { swapchain_loader.get_swapchain_images(swapchain)? };
+        
         Ok(SwapChain {
             swapchain_loader,
-            swapchain: SwapchainKHR::null()
+            swapchain: SwapchainKHR::null(),
+            image_format: best_surface_format.format,
+            extent: extent_2d,
+            images
         })
     }
 }
@@ -66,7 +74,6 @@ impl Drop for SwapChain {
     fn drop(&mut self) {
         unsafe {
             println!("Dropping SwapChain");
-
 
             self.swapchain_loader.destroy_swapchain(self.swapchain, None);
         }
