@@ -15,21 +15,26 @@ impl QueueFamilyIndices {
 
 pub struct LogicalDevice {
     raw: ash::Device,
-    graphics_queue: vk::Queue
+    graphics_queue: vk::Queue,
+    present_queue: vk::Queue,
 }
 
 impl LogicalDevice {
     pub fn new(instance: &Instance, physical_device: &PhysicalDevice, surface: &Surface, required_props_names: &[String]) -> Result<Self> {
         let family_indicies = find_queue_families(instance, physical_device, surface)?;
-
         let queue_priority = 1.0f32;
 
-        let queue_create_info = vk::DeviceQueueCreateInfo {
-            queue_family_index: family_indicies.graphics_family.unwrap(),
+        let mut queue_families = vec![family_indicies.graphics_family.unwrap(), family_indicies.present_family.unwrap()];
+        queue_families.sort();
+        queue_families.dedup();
+
+        let queue_create_infos: Vec<vk::DeviceQueueCreateInfo> = queue_families.iter().map(|&ix| vk::DeviceQueueCreateInfo {
+            queue_family_index: ix,
             queue_count: 1,
             p_queue_priorities: &queue_priority,
             ..Default::default()
-        };
+        }).collect();
+
         let device_features = vk::PhysicalDeviceFeatures {
             ..Default::default()
         };
@@ -37,8 +42,8 @@ impl LogicalDevice {
         let prepared_required_props_names = VkStringArray::new(required_props_names);
         
         let device_create_info = vk::DeviceCreateInfo {
-            p_queue_create_infos: &queue_create_info,
-            queue_create_info_count: 1,
+            p_queue_create_infos: queue_create_infos.as_ptr(),
+            queue_create_info_count: queue_create_infos.len() as u32,
             p_enabled_features: &device_features,
             pp_enabled_extension_names: prepared_required_props_names.as_ptrs(),
             enabled_extension_count: required_props_names.len() as u32,
@@ -49,10 +54,12 @@ impl LogicalDevice {
         let device = unsafe { instance.raw().create_device(*physical_device, &device_create_info, None)? };
 
         let graphics_queue = unsafe { device.get_device_queue(family_indicies.graphics_family.unwrap(), 0) };
+        let present_queue = unsafe { device.get_device_queue(family_indicies.present_family.unwrap(), 0) };
 
         Ok(Self {
             raw: device,
-            graphics_queue
+            graphics_queue,
+            present_queue
         })
     }
 
@@ -87,9 +94,9 @@ pub fn find_queue_families(instance: &Instance, physical_device: &PhysicalDevice
         if has_support {
             present_index = Some(ix as u32);
         }
-
-        break;
     }
+
+    println!("Graphics ix: {:?}, Present ix: {:?}", graphics_index, present_index);
 
     Ok(QueueFamilyIndices { graphics_family: graphics_index, present_family: present_index })
 }

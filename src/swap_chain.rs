@@ -68,6 +68,14 @@ impl SwapChain {
             images
         })
     }
+
+    pub fn images(&self) -> &Vec<Image> {
+        &self.images
+    }
+
+    pub fn image_format(&self) -> &Format {
+        &self.image_format
+    }
 }
 
 impl Drop for SwapChain {

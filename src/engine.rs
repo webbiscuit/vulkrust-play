@@ -2,7 +2,7 @@ use ash::vk::{PhysicalDevice, PhysicalDeviceType, SurfaceKHR};
 use ash_window::enumerate_required_extensions;
 use raw_window_handle::{HasDisplayHandle};
 use winit::window::Window;
-use crate::{Instance, LogicalDevice, Surface, logical_device::find_queue_families, surface, swap_chain::{self, SwapChain}, utils::vk_str_to_string};
+use crate::{Instance, LogicalDevice, Surface, image_view::ImageView, logical_device::find_queue_families, surface, swap_chain::{self, SwapChain}, utils::vk_str_to_string};
 use anyhow::{Error, Result};
 
 pub struct VulkanEngine {
@@ -22,6 +22,10 @@ impl VulkanEngine {
         let physical_device = Self::pick_suitable_device(&instance, &surface)?;
         let logical_device = LogicalDevice::new(&instance, &physical_device,  &surface, &Self::required_device_prop_names())?;
         let swap_chain = SwapChain::new(&instance, &physical_device, &logical_device, &surface, window_dims.width, window_dims.height)?;
+        let image_views = swap_chain.images().iter().map(|i| ImageView::new(
+            &logical_device, i, swap_chain.image_format()
+        )).collect::<Result<Vec<_>, _>>()?;
+
 
         Ok(VulkanEngine { 
             surface,
