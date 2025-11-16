@@ -62,7 +62,7 @@ impl SwapChain {
         
         Ok(SwapChain {
             swapchain_loader,
-            swapchain: SwapchainKHR::null(),
+            swapchain,
             image_format: best_surface_format.format,
             extent: extent_2d,
             images
