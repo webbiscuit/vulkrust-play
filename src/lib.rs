@@ -7,6 +7,8 @@ mod utils;
 mod swap_chain;
 mod image_view;
 mod shader_module;
+mod graphics_pipeline;
+mod render_pass;
 
 pub use engine::VulkanEngine;
 pub use instance::Instance;
