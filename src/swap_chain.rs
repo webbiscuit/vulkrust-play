@@ -76,6 +76,10 @@ impl SwapChain {
     pub fn image_format(&self) -> &Format {
         &self.image_format
     }
+
+    pub fn extent(&self) -> &Extent2D {
+        &self.extent
+    }
 }
 
 impl Drop for SwapChain {

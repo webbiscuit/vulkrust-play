@@ -1,8 +1,10 @@
-use ash::vk::{PhysicalDevice, PhysicalDeviceType, SurfaceKHR};
+use std::{fs::{self, File}, io::Read};
+
+use ash::vk::{Bool32, CullModeFlags, FrontFace, Offset2D, PhysicalDevice, PhysicalDeviceType, PipelineInputAssemblyStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, ShaderStageFlags, SurfaceKHR, VertexInputAttributeDescription, Viewport};
 use ash_window::enumerate_required_extensions;
 use raw_window_handle::{HasDisplayHandle};
 use winit::window::Window;
-use crate::{Instance, LogicalDevice, Surface, image_view::ImageView, logical_device::find_queue_families, surface, swap_chain::{self, SwapChain}, utils::vk_str_to_string};
+use crate::{Instance, LogicalDevice, Surface, image_view::ImageView, logical_device::find_queue_families, shader_module::ShaderModule, surface, swap_chain::{self, SwapChain}, utils::vk_str_to_string};
 use anyhow::{Error, Result};
 
 pub struct VulkanEngine {
@@ -26,6 +28,7 @@ impl VulkanEngine {
             &logical_device, i, swap_chain.image_format()
         )).collect::<Result<Vec<_>, _>>()?;
 
+        create_graphics_pipeline(&logical_device, &swap_chain)?;
 
         Ok(VulkanEngine { 
             surface,
@@ -118,4 +121,95 @@ fn check_physical_device_extension_support(instance: &Instance, physical_device:
     }
 
     Ok(required_props_names.is_empty())
+}
+
+fn create_graphics_pipeline(logical_device: &LogicalDevice, swap_chain: &SwapChain) -> Result<()> {
+    let vertex_shader = read_file("shaders/out/vert.spv")?;
+    let fragment_shader = read_file("shaders/out/frag.spv")?;
+
+    let vertex_shader_module = ShaderModule::new(logical_device, &vertex_shader)?;
+    let fragment_shader_module = ShaderModule::new(logical_device, &fragment_shader)?;
+
+    let vertex_shader_stage_info = ash::vk::PipelineShaderStageCreateInfo {
+        stage: ShaderStageFlags::VERTEX,
+        module: *vertex_shader_module.raw(),
+        p_name: "main".as_ptr() as *const i8,
+        ..Default::default()
+    };
+    let fragment_shader_module_info = ash::vk::PipelineShaderStageCreateInfo {
+        stage: ShaderStageFlags::VERTEX,
+        module: *fragment_shader_module.raw(),
+        p_name: "main".as_ptr() as *const i8,
+        ..Default::default()
+    };
+
+    let shader_stages = [vertex_shader_stage_info, fragment_shader_module_info];
+
+    let dynamic_states: Vec<ash::vk::DynamicState> = vec![
+        ash::vk::DynamicState::VIEWPORT,
+        ash::vk::DynamicState::SCISSOR
+    ];
+
+    let dynamic_state_create_info = ash::vk::PipelineDynamicStateCreateInfo {
+        dynamic_state_count: dynamic_states.len() as u32,
+        p_dynamic_states: dynamic_states.as_ptr(),
+        ..Default::default()
+    };
+
+    // VkPipelineVertexInputStateCreateInfo 
+    let pipeline_vertex_input_create_info = ash::vk::PipelineVertexInputStateCreateInfo {
+        vertex_attribute_description_count: 0,
+        p_vertex_attribute_descriptions: ::core::ptr::null(),
+        vertex_binding_description_count: 0,
+        p_vertex_binding_descriptions: ::core::ptr::null(),
+        ..Default::default()
+    };
+
+    // VkPipelineInputAssemblyStateCreateInfo 
+    let pipeline_input_assembly_state_create_info = PipelineInputAssemblyStateCreateInfo {
+        topology: PrimitiveTopology::TRIANGLE_LIST,
+        primitive_restart_enable: ash::vk::FALSE,
+        ..Default::default()
+    };
+
+    let viewport = Viewport {
+        x: 0.0f32,
+        y: 0.0f32,
+        width: swap_chain.extent().width as f32, 
+        height: swap_chain.extent().height as f32,
+        min_depth: 0.0f32,
+        max_depth: 1.0f32
+    };
+
+    let scissor = ash::vk::Rect2D {
+        offset: Offset2D { x: 0, y: 0},
+        extent: *swap_chain.extent()
+    };
+
+    // VkPipelineViewportStateCreateInfo 
+    let pipeline_viewport_state_create_info = PipelineViewportStateCreateInfo {
+        viewport_count: 1,
+        scissor_count: 1,
+        // p_scissors: &scissor, // I think this makes the scissor immutable
+        // p_viewports: &viewport, // I think this makes the viewport immutable
+        ..Default::default()
+    };
+
+    // VkPipelineRasterizationStateCreateInfo 
+    let pipeline_rasterization_state_create_info = PipelineRasterizationStateCreateInfo {
+        depth_clamp_enable: ash::vk::FALSE, // Maybe useful in shadow maps
+        rasterizer_discard_enable: ash::vk::FALSE,
+        polygon_mode: PolygonMode::FILL,
+        line_width: 1.0f32,
+        cull_mode: CullModeFlags::BACK,
+        front_face: FrontFace::CLOCKWISE,
+        ..Default::default()
+    };
+
+
+    Ok(())
+}
+
+fn read_file(path: &str) -> Result<Vec<u8>> {
+    Ok(fs::read(path)?)
 }

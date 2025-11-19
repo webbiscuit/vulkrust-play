@@ -6,6 +6,7 @@ mod surface;
 mod utils;
 mod swap_chain;
 mod image_view;
+mod shader_module;
 
 pub use engine::VulkanEngine;
 pub use instance::Instance;
